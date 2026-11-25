@@ -237,6 +237,14 @@ def analyze_with_ai(message: str, context: dict) -> str:
             f"*Tente perguntar: \"Como está nossa taxa de conversão?\" ou \"Faça uma previsão para o próximo mês\"*"
         )
 
+def parse_period(period: str) -> int:
+    """Convert a period like '30d' into a number of days (1-365). Invalid values fall back to 90."""
+    try:
+        days = int(period.strip().lower().rstrip("d"))
+    except (ValueError, AttributeError):
+        return 90
+    return max(1, min(days, 365))
+
 # ─── Routes ───────────────────────────────────────────────────────────────────
 
 @app.get("/")
@@ -245,31 +253,31 @@ def root():
 
 @app.get("/api/kpis")
 def get_kpis(period: str = "90d"):
-    days = int(period.replace("d", "")) if "d" in period else 90
+    days = parse_period(period)
     data = generate_sales_data(days)
     return compute_kpis(data)
 
 @app.get("/api/timeseries")
 def get_timeseries(period: str = "90d"):
-    days = int(period.replace("d", "")) if "d" in period else 90
+    days = parse_period(period)
     data = generate_sales_data(days)
     return [{"date": d["date"], "revenue": d["revenue"], "deals": d["deals"]} for d in data]
 
 @app.get("/api/by-product")
 def get_by_product(period: str = "90d"):
-    days = int(period.replace("d", "")) if "d" in period else 90
+    days = parse_period(period)
     data = generate_sales_data(days)
     return compute_by_dimension(data, "product")
 
 @app.get("/api/by-region")
 def get_by_region(period: str = "90d"):
-    days = int(period.replace("d", "")) if "d" in period else 90
+    days = parse_period(period)
     data = generate_sales_data(days)
     return compute_by_dimension(data, "region")
 
 @app.get("/api/by-seller")
 def get_by_seller(period: str = "90d"):
-    days = int(period.replace("d", "")) if "d" in period else 90
+    days = parse_period(period)
     data = generate_sales_data(days)
     return compute_by_dimension(data, "seller")
 
@@ -279,7 +287,7 @@ def get_funnel():
 
 @app.get("/api/top-products")
 def get_top_products(period: str = "90d", limit: int = 5):
-    days = int(period.replace("d", "")) if "d" in period else 90
+    days = parse_period(period)
     data = generate_sales_data(days)
     by_product = compute_by_dimension(data, "product")
     sorted_products = sorted(by_product, key=lambda x: x["revenue"], reverse=True)
