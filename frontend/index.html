@@ -1,0 +1,916 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AI Sales Analyst</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --bg2: #111118;
+    --bg3: #1a1a26;
+    --border: #2a2a3e;
+    --accent: #7c3aed;
+    --accent2: #a855f7;
+    --accent3: #ec4899;
+    --text: #e8e8f0;
+    --muted: #6b6b8a;
+    --green: #10b981;
+    --red: #ef4444;
+    --yellow: #f59e0b;
+    --card-glow: 0 0 30px rgba(124,58,237,0.08);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Syne', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── SCROLLBAR ── */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* ── GRID NOISE BACKGROUND ── */
+  body::before {
+    content: '';
+    position: fixed; inset: 0; z-index: 0;
+    background-image:
+      linear-gradient(rgba(124,58,237,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(124,58,237,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+  }
+
+  /* ── SIDEBAR ── */
+  .sidebar {
+    position: fixed; left: 0; top: 0; bottom: 0;
+    width: 220px;
+    background: var(--bg2);
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    z-index: 100;
+    padding: 28px 0;
+  }
+
+  .logo {
+    padding: 0 24px 28px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 20px;
+  }
+  .logo-mark {
+    font-size: 11px;
+    font-family: 'IBM Plex Mono', monospace;
+    color: var(--accent2);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .logo-name {
+    font-size: 18px;
+    font-weight: 800;
+    background: linear-gradient(135deg, var(--accent2), var(--accent3));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 11px 24px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    letter-spacing: 0.3px;
+    border-left: 2px solid transparent;
+    transition: all 0.15s;
+  }
+  .nav-item:hover { color: var(--text); background: rgba(124,58,237,0.05); }
+  .nav-item.active { color: var(--accent2); border-left-color: var(--accent2); background: rgba(124,58,237,0.08); }
+  .nav-icon { font-size: 15px; width: 18px; text-align: center; }
+
+  .sidebar-bottom {
+    margin-top: auto;
+    padding: 20px 24px 0;
+    border-top: 1px solid var(--border);
+  }
+  .status-dot {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 11px; font-family: 'IBM Plex Mono', monospace;
+    color: var(--muted);
+  }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  /* ── MAIN ── */
+  .main { margin-left: 220px; padding: 32px; min-height: 100vh; position: relative; z-index: 1; }
+
+  /* ── TOP BAR ── */
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 32px;
+  }
+  .page-title { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; }
+  .page-title span { color: var(--accent2); }
+
+  .period-select {
+    display: flex; gap: 6px;
+  }
+  .period-btn {
+    padding: 6px 14px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .period-btn:hover { border-color: var(--accent); color: var(--text); }
+  .period-btn.active { background: var(--accent); border-color: var(--accent); color: white; }
+
+  /* ── KPI CARDS ── */
+  .kpi-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; margin-bottom: 28px; }
+
+  .kpi-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.2s, transform 0.2s;
+  }
+  .kpi-card:hover { border-color: var(--accent); transform: translateY(-1px); box-shadow: var(--card-glow); }
+  .kpi-card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, var(--accent), var(--accent3));
+    opacity: 0; transition: opacity 0.2s;
+  }
+  .kpi-card:hover::before { opacity: 1; }
+
+  .kpi-label { font-size: 10px; font-family: 'IBM Plex Mono', monospace; color: var(--muted); text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 10px; }
+  .kpi-value { font-size: 22px; font-weight: 800; letter-spacing: -1px; margin-bottom: 6px; }
+  .kpi-badge {
+    display: inline-flex; align-items: center; gap: 3px;
+    font-size: 11px; font-weight: 600;
+    padding: 2px 8px; border-radius: 20px;
+  }
+  .badge-up { background: rgba(16,185,129,0.12); color: var(--green); }
+  .badge-down { background: rgba(239,68,68,0.12); color: var(--red); }
+  .badge-neutral { background: rgba(245,158,11,0.12); color: var(--yellow); }
+  .kpi-icon { position: absolute; right: 16px; top: 16px; font-size: 20px; opacity: 0.3; }
+
+  /* ── CHART CARDS ── */
+  .charts-row { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 28px; }
+  .charts-row2 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 28px; }
+
+  .chart-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 22px;
+    position: relative;
+  }
+  .chart-title {
+    font-size: 12px; font-weight: 700; letter-spacing: 0.5px;
+    color: var(--muted); text-transform: uppercase; margin-bottom: 18px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .chart-badge {
+    font-size: 10px; font-family: 'IBM Plex Mono', monospace;
+    background: rgba(124,58,237,0.15); color: var(--accent2);
+    padding: 2px 8px; border-radius: 20px; font-weight: 400;
+  }
+  .chart-wrap { position: relative; height: 200px; }
+  .chart-wrap-tall { position: relative; height: 240px; }
+
+  /* ── FUNNEL ── */
+  .funnel { display: flex; flex-direction: column; gap: 8px; }
+  .funnel-bar-wrap { display: flex; align-items: center; gap: 12px; }
+  .funnel-label { font-size: 11px; color: var(--muted); width: 90px; text-align: right; font-family: 'IBM Plex Mono', monospace; }
+  .funnel-bar-bg { flex: 1; height: 28px; background: var(--bg3); border-radius: 4px; overflow: hidden; }
+  .funnel-bar { height: 100%; border-radius: 4px; display: flex; align-items: center; padding: 0 10px; transition: width 0.8s cubic-bezier(0.16,1,0.3,1); }
+  .funnel-bar span { font-size: 11px; font-weight: 700; color: white; font-family: 'IBM Plex Mono', monospace; }
+  .funnel-pct { font-size: 11px; color: var(--muted); width: 40px; font-family: 'IBM Plex Mono', monospace; }
+
+  /* ── TABLE ── */
+  .table-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 28px;
+  }
+  .table-header {
+    padding: 18px 22px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .table-title { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  table { width: 100%; border-collapse: collapse; }
+  th {
+    font-size: 10px; font-family: 'IBM Plex Mono', monospace;
+    color: var(--muted); text-transform: uppercase; letter-spacing: 1.5px;
+    padding: 10px 22px; text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  td {
+    padding: 13px 22px;
+    font-size: 13px;
+    border-bottom: 1px solid rgba(42,42,62,0.5);
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(124,58,237,0.03); }
+  .rank { font-family: 'IBM Plex Mono', monospace; color: var(--muted); font-size: 12px; }
+  .revenue-val { font-weight: 700; font-family: 'IBM Plex Mono', monospace; }
+  .bar-mini { height: 4px; background: var(--bg3); border-radius: 2px; margin-top: 5px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 2px; background: linear-gradient(90deg, var(--accent), var(--accent2)); }
+
+  /* ── AI CHAT ── */
+  .chat-section {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 28px;
+  }
+  .chat-header {
+    padding: 18px 22px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 12px;
+  }
+  .ai-avatar {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), var(--accent3));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+  }
+  .chat-info .name { font-size: 13px; font-weight: 700; }
+  .chat-info .sub { font-size: 10px; font-family: 'IBM Plex Mono', monospace; color: var(--muted); }
+
+  .chat-messages {
+    height: 300px; overflow-y: auto;
+    padding: 20px 22px;
+    display: flex; flex-direction: column; gap: 14px;
+  }
+  .msg { display: flex; gap: 10px; animation: fadeUp 0.3s ease; }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .msg.user { flex-direction: row-reverse; }
+  .msg-bubble {
+    max-width: 75%; padding: 10px 14px; border-radius: 12px;
+    font-size: 13px; line-height: 1.5;
+  }
+  .msg.ai .msg-bubble { background: var(--bg3); border: 1px solid var(--border); border-radius: 2px 12px 12px 12px; }
+  .msg.user .msg-bubble { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: white; border-radius: 12px 2px 12px 12px; }
+  .msg-avatar { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0; }
+  .msg.ai .msg-avatar { background: linear-gradient(135deg, var(--accent), var(--accent3)); }
+  .msg.user .msg-avatar { background: var(--bg3); border: 1px solid var(--border); }
+
+  .typing { display: flex; gap: 4px; padding: 4px 0; }
+  .typing span {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--muted);
+    animation: bounce 1s infinite;
+  }
+  .typing span:nth-child(2) { animation-delay: 0.15s; }
+  .typing span:nth-child(3) { animation-delay: 0.3s; }
+  @keyframes bounce { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-6px)} }
+
+  .chat-input-wrap {
+    padding: 16px 22px;
+    border-top: 1px solid var(--border);
+    display: flex; gap: 10px; align-items: center;
+  }
+  .chat-suggestions { padding: 0 22px 14px; display: flex; flex-wrap: wrap; gap: 8px; }
+  .suggestion {
+    font-size: 11px; padding: 5px 12px;
+    background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 20px; cursor: pointer; color: var(--muted);
+    font-family: 'IBM Plex Mono', monospace;
+    transition: all 0.15s;
+  }
+  .suggestion:hover { border-color: var(--accent2); color: var(--accent2); }
+
+  #chat-input {
+    flex: 1; background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px 14px;
+    color: var(--text); font-family: 'Syne', sans-serif; font-size: 13px;
+    outline: none; transition: border-color 0.15s;
+  }
+  #chat-input:focus { border-color: var(--accent); }
+  #chat-input::placeholder { color: var(--muted); }
+
+  .send-btn {
+    width: 38px; height: 38px; border-radius: 8px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border: none; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px; transition: opacity 0.15s;
+  }
+  .send-btn:hover { opacity: 0.85; }
+
+  /* Markdown-like inside bubble */
+  .msg-bubble strong { font-weight: 700; }
+  .msg-bubble br { display: block; margin: 2px 0; }
+
+  /* ── LOADING ── */
+  .loading { display: flex; align-items: center; justify-content: center; height: 200px; }
+  .spinner {
+    width: 32px; height: 32px; border-radius: 50%;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent2);
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── PAGES ── */
+  .page { display: none; }
+  .page.active { display: block; }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 1100px) {
+    .kpi-grid { grid-template-columns: repeat(3, 1fr); }
+    .charts-row { grid-template-columns: 1fr; }
+    .charts-row2 { grid-template-columns: 1fr 1fr; }
+  }
+  @media (max-width: 768px) {
+    .sidebar { width: 180px; }
+    .main { margin-left: 180px; padding: 20px; }
+    .kpi-grid { grid-template-columns: 1fr 1fr; }
+    .charts-row2 { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<nav class="sidebar">
+  <div class="logo">
+    <div class="logo-mark">AI // Analytics</div>
+    <div class="logo-name">SalesAnalyst</div>
+  </div>
+  <div class="nav-item active" onclick="showPage('dashboard', this)">
+    <span class="nav-icon">⬡</span> Dashboard
+  </div>
+  <div class="nav-item" onclick="showPage('produtos', this)">
+    <span class="nav-icon">◈</span> Produtos
+  </div>
+  <div class="nav-item" onclick="showPage('equipe', this)">
+    <span class="nav-icon">◉</span> Equipe
+  </div>
+  <div class="nav-item" onclick="showPage('regioes', this)">
+    <span class="nav-icon">◎</span> Regiões
+  </div>
+  <div class="nav-item" onclick="showPage('ia', this)">
+    <span class="nav-icon">✦</span> IA Analista
+  </div>
+  <div class="sidebar-bottom">
+    <div class="status-dot">
+      <div class="dot"></div>
+      <span>API conectada</span>
+    </div>
+  </div>
+</nav>
+
+<!-- MAIN -->
+<main class="main">
+
+  <!-- DASHBOARD PAGE -->
+  <div class="page active" id="page-dashboard">
+    <div class="topbar">
+      <h1 class="page-title">Visão <span>Geral</span></h1>
+      <div class="period-select">
+        <button class="period-btn" onclick="setPeriod('30d', this)">30d</button>
+        <button class="period-btn active" onclick="setPeriod('90d', this)">90d</button>
+        <button class="period-btn" onclick="setPeriod('180d', this)">180d</button>
+      </div>
+    </div>
+
+    <div class="kpi-grid" id="kpi-grid">
+      <div class="loading"><div class="spinner"></div></div>
+    </div>
+
+    <div class="charts-row">
+      <div class="chart-card">
+        <div class="chart-title">Receita ao Longo do Tempo <span class="chart-badge">Diário</span></div>
+        <div class="chart-wrap-tall"><canvas id="revenueChart"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Funil de Vendas</div>
+        <div id="funnel-container" style="padding-top:10px;"></div>
+      </div>
+    </div>
+
+    <div class="charts-row2">
+      <div class="chart-card">
+        <div class="chart-title">Por Produto</div>
+        <div class="chart-wrap"><canvas id="productChart"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Por Região</div>
+        <div class="chart-wrap"><canvas id="regionChart"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Negócios × Conversão</div>
+        <div class="chart-wrap"><canvas id="dealsChart"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PRODUTOS PAGE -->
+  <div class="page" id="page-produtos">
+    <div class="topbar">
+      <h1 class="page-title">Análise de <span>Produtos</span></h1>
+    </div>
+    <div class="table-card">
+      <div class="table-header"><span class="table-title">Ranking de Produtos por Receita</span></div>
+      <table id="products-table">
+        <thead><tr><th>#</th><th>Produto</th><th>Receita</th><th>Negócios</th><th>Share</th></tr></thead>
+        <tbody id="products-tbody"><tr><td colspan="5" style="text-align:center;padding:30px;color:var(--muted)">Carregando...</td></tr></tbody>
+      </table>
+    </div>
+    <div class="charts-row">
+      <div class="chart-card">
+        <div class="chart-title">Receita por Produto</div>
+        <div class="chart-wrap-tall"><canvas id="productBarChart"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Distribuição</div>
+        <div class="chart-wrap-tall"><canvas id="productDoughnut"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- EQUIPE PAGE -->
+  <div class="page" id="page-equipe">
+    <div class="topbar">
+      <h1 class="page-title">Performance da <span>Equipe</span></h1>
+    </div>
+    <div class="table-card">
+      <div class="table-header"><span class="table-title">Ranking de Vendedores</span></div>
+      <table>
+        <thead><tr><th>#</th><th>Vendedor</th><th>Receita</th><th>Negócios</th><th>Performance</th></tr></thead>
+        <tbody id="sellers-tbody"><tr><td colspan="5" style="text-align:center;padding:30px;color:var(--muted)">Carregando...</td></tr></tbody>
+      </table>
+    </div>
+    <div class="chart-card" style="margin-bottom:28px">
+      <div class="chart-title">Receita por Vendedor</div>
+      <div style="height:260px"><canvas id="sellerChart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- REGIOES PAGE -->
+  <div class="page" id="page-regioes">
+    <div class="topbar">
+      <h1 class="page-title">Análise <span>Regional</span></h1>
+    </div>
+    <div class="charts-row">
+      <div class="chart-card">
+        <div class="chart-title">Receita por Região</div>
+        <div class="chart-wrap-tall"><canvas id="regionBarChart"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Market Share Regional</div>
+        <div class="chart-wrap-tall"><canvas id="regionPieChart"></canvas></div>
+      </div>
+    </div>
+    <div class="table-card">
+      <div class="table-header"><span class="table-title">Detalhamento por Região</span></div>
+      <table>
+        <thead><tr><th>#</th><th>Região</th><th>Receita</th><th>Negócios</th><th>Participação</th></tr></thead>
+        <tbody id="regions-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- IA PAGE -->
+  <div class="page" id="page-ia">
+    <div class="topbar">
+      <h1 class="page-title">IA <span>Analista</span></h1>
+    </div>
+    <div class="chat-section">
+      <div class="chat-header">
+        <div class="ai-avatar">✦</div>
+        <div class="chat-info">
+          <div class="name">Analista IA de Vendas</div>
+          <div class="sub">Powered by FastAPI + Python</div>
+        </div>
+      </div>
+      <div class="chat-messages" id="chat-messages">
+        <div class="msg ai">
+          <div class="msg-avatar">✦</div>
+          <div class="msg-bubble">
+            👋 Olá! Sou seu <strong>Analista de Vendas com IA</strong>.<br><br>
+            Posso analisar receita, conversão, performance da equipe, previsões e muito mais.<br><br>
+            <em>Como posso ajudar hoje?</em>
+          </div>
+        </div>
+      </div>
+      <div class="chat-suggestions">
+        <span class="suggestion" onclick="sendSuggestion(this)">Como está nossa receita?</span>
+        <span class="suggestion" onclick="sendSuggestion(this)">Taxa de conversão</span>
+        <span class="suggestion" onclick="sendSuggestion(this)">Performance da equipe</span>
+        <span class="suggestion" onclick="sendSuggestion(this)">Faça uma previsão</span>
+        <span class="suggestion" onclick="sendSuggestion(this)">Análise de churn</span>
+        <span class="suggestion" onclick="sendSuggestion(this)">Análise regional</span>
+      </div>
+      <div class="chat-input-wrap">
+        <input id="chat-input" type="text" placeholder="Faça uma pergunta sobre seus dados de vendas..." 
+               onkeydown="if(event.key==='Enter')sendChat()" />
+        <button class="send-btn" onclick="sendChat()">➤</button>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+// ─── CONFIG ───────────────────────────────────────────────────────────────────
+const API = (window.location.protocol === 'file:' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+  ? 'http://localhost:8000'
+  : '';
+
+let currentPeriod = '90d';
+let kpisData = null;
+
+const COLORS = ['#7c3aed','#a855f7','#ec4899','#6366f1','#8b5cf6','#d946ef','#c026d3'];
+const GRADIENT_COLORS = ['rgba(124,58,237,0.8)','rgba(168,85,247,0.8)','rgba(236,72,153,0.8)',
+                         'rgba(99,102,241,0.8)','rgba(139,92,246,0.8)'];
+
+Chart.defaults.color = '#6b6b8a';
+Chart.defaults.borderColor = '#2a2a3e';
+Chart.defaults.font.family = "'IBM Plex Mono', monospace";
+
+// ─── UTILS ────────────────────────────────────────────────────────────────────
+const fmt = n => 'R$ ' + n.toLocaleString('pt-BR', {minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtK = n => n >= 1000000 ? 'R$ '+(n/1000000).toFixed(1)+'M' : n >= 1000 ? 'R$ '+(n/1000).toFixed(0)+'K' : fmt(n);
+const pct = n => n.toFixed(1) + '%';
+
+async function apiFetch(path) {
+  const res = await fetch(API + path);
+  return res.json();
+}
+
+// ─── NAVIGATION ───────────────────────────────────────────────────────────────
+function showPage(page, el) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + page).classList.add('active');
+  el.classList.add('active');
+  if (page === 'produtos') loadProductsPage();
+  if (page === 'equipe') loadEquipePage();
+  if (page === 'regioes') loadRegioesPage();
+}
+
+function setPeriod(period, btn) {
+  currentPeriod = period;
+  document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  destroyCharts();
+  loadDashboard();
+}
+
+// ─── CHART INSTANCES ─────────────────────────────────────────────────────────
+const charts = {};
+function destroyCharts() {
+  Object.values(charts).forEach(c => { try { c.destroy(); } catch(e){} });
+}
+
+// ─── DASHBOARD ────────────────────────────────────────────────────────────────
+async function loadDashboard() {
+  const [kpis, ts, byProduct, byRegion, funnel] = await Promise.all([
+    apiFetch('/api/kpis?period=' + currentPeriod),
+    apiFetch('/api/timeseries?period=' + currentPeriod),
+    apiFetch('/api/by-product?period=' + currentPeriod),
+    apiFetch('/api/by-region?period=' + currentPeriod),
+    apiFetch('/api/funnel'),
+  ]);
+  kpisData = kpis;
+  renderKPIs(kpis);
+  renderTimeseries(ts);
+  renderFunnel(funnel);
+  renderProductChart(byProduct);
+  renderRegionChart(byRegion);
+  renderDealsChart(ts);
+}
+
+function renderKPIs(k) {
+  const grid = document.getElementById('kpi-grid');
+  const growthClass = k.revenue_growth >= 0 ? 'badge-up' : 'badge-down';
+  const growthIcon = k.revenue_growth >= 0 ? '↑' : '↓';
+  grid.innerHTML = `
+    <div class="kpi-card"><span class="kpi-icon">💰</span>
+      <div class="kpi-label">Receita Total</div>
+      <div class="kpi-value">${fmtK(k.total_revenue)}</div>
+      <span class="kpi-badge ${growthClass}">${growthIcon} ${Math.abs(k.revenue_growth).toFixed(1)}%</span>
+    </div>
+    <div class="kpi-card"><span class="kpi-icon">🤝</span>
+      <div class="kpi-label">Negócios</div>
+      <div class="kpi-value">${k.total_deals.toLocaleString()}</div>
+      <span class="kpi-badge badge-neutral">período</span>
+    </div>
+    <div class="kpi-card"><span class="kpi-icon">🎯</span>
+      <div class="kpi-label">Ticket Médio</div>
+      <div class="kpi-value">${fmtK(k.avg_ticket)}</div>
+      <span class="kpi-badge badge-neutral">por negócio</span>
+    </div>
+    <div class="kpi-card"><span class="kpi-icon">📊</span>
+      <div class="kpi-label">Conversão Média</div>
+      <div class="kpi-value">${pct(k.avg_conversion_rate)}</div>
+      <span class="kpi-badge ${k.avg_conversion_rate > 22 ? 'badge-up' : 'badge-down'}">${k.avg_conversion_rate > 22 ? '✓ acima' : '↓ abaixo'}</span>
+    </div>
+    <div class="kpi-card"><span class="kpi-icon">🏆</span>
+      <div class="kpi-label">Top Produto</div>
+      <div class="kpi-value" style="font-size:14px;letter-spacing:0">${k.best_product}</div>
+      <span class="kpi-badge badge-up">líder</span>
+    </div>
+  `;
+}
+
+function renderTimeseries(data) {
+  const ctx = document.getElementById('revenueChart').getContext('2d');
+  const labels = data.map(d => d.date.slice(5));
+  const values = data.map(d => d.revenue);
+  const grad = ctx.createLinearGradient(0, 0, 0, 240);
+  grad.addColorStop(0, 'rgba(124,58,237,0.3)');
+  grad.addColorStop(1, 'rgba(124,58,237,0)');
+  charts.revenue = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        data: values, fill: true, backgroundColor: grad,
+        borderColor: '#a855f7', borderWidth: 2,
+        pointRadius: 0, tension: 0.4,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => fmtK(c.parsed.y) } } },
+      scales: {
+        x: { ticks: { maxTicksLimit: 8, font: { size: 10 } }, grid: { color: 'rgba(42,42,62,0.5)' } },
+        y: { ticks: { callback: v => fmtK(v), font: { size: 10 } }, grid: { color: 'rgba(42,42,62,0.5)' } }
+      }
+    }
+  });
+}
+
+function renderFunnel(data) {
+  const max = data[0].count;
+  const container = document.getElementById('funnel-container');
+  container.innerHTML = '<div class="funnel">' + data.map((s, i) => {
+    const w = (s.count / max * 100).toFixed(0);
+    const pctLabel = i === 0 ? '100%' : ((s.count / data[i-1].count * 100).toFixed(0) + '%');
+    return `<div class="funnel-bar-wrap">
+      <div class="funnel-label">${s.stage}</div>
+      <div class="funnel-bar-bg">
+        <div class="funnel-bar" style="width:${w}%;background:${s.color}">
+          <span>${s.count.toLocaleString()}</span>
+        </div>
+      </div>
+      <div class="funnel-pct">${pctLabel}</div>
+    </div>`;
+  }).join('') + '</div>';
+}
+
+function renderProductChart(data) {
+  const sorted = [...data].sort((a,b) => b.revenue - a.revenue).slice(0,6);
+  const ctx = document.getElementById('productChart').getContext('2d');
+  charts.product = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: sorted.map(d => d.name),
+      datasets: [{ data: sorted.map(d => d.revenue), backgroundColor: GRADIENT_COLORS, borderRadius: 4 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => fmtK(c.parsed.x) } } },
+      scales: {
+        x: { ticks: { callback: v => fmtK(v), font: { size: 9 } }, grid: { color: 'rgba(42,42,62,0.5)' } },
+        y: { ticks: { font: { size: 10 } }, grid: { display: false } }
+      }
+    }
+  });
+}
+
+function renderRegionChart(data) {
+  const ctx = document.getElementById('regionChart').getContext('2d');
+  charts.region = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: data.map(d => d.name),
+      datasets: [{ data: data.map(d => d.revenue), backgroundColor: COLORS, borderWidth: 0, hoverOffset: 6 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { font: { size: 10 }, boxWidth: 10 } },
+        tooltip: { callbacks: { label: c => c.label + ': ' + fmtK(c.parsed) } } },
+      cutout: '65%'
+    }
+  });
+}
+
+function renderDealsChart(ts) {
+  const ctx = document.getElementById('dealsChart').getContext('2d');
+  const sampled = ts.filter((_, i) => i % Math.ceil(ts.length / 30) === 0);
+  charts.deals = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: sampled.map(d => d.date.slice(5)),
+      datasets: [{
+        data: sampled.map(d => d.deals), backgroundColor: 'rgba(236,72,153,0.6)',
+        borderRadius: 3, borderSkipped: false,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { maxTicksLimit: 6, font: { size: 9 } }, grid: { display: false } },
+        y: { ticks: { font: { size: 9 } }, grid: { color: 'rgba(42,42,62,0.5)' } }
+      }
+    }
+  });
+}
+
+// ─── PRODUTOS PAGE ─────────────────────────────────────────────────────────────
+async function loadProductsPage() {
+  const data = await apiFetch('/api/by-product?period=' + currentPeriod);
+  const sorted = [...data].sort((a,b) => b.revenue - a.revenue);
+  const total = sorted.reduce((s, d) => s + d.revenue, 0);
+  const tbody = document.getElementById('products-tbody');
+  tbody.innerHTML = sorted.map((p, i) => {
+    const share = (p.revenue / total * 100).toFixed(1);
+    return `<tr>
+      <td class="rank">${i+1}</td>
+      <td><strong>${p.name}</strong></td>
+      <td class="revenue-val">${fmt(p.revenue)}</td>
+      <td>${p.deals}</td>
+      <td>
+        <span style="font-size:11px;font-family:'IBM Plex Mono',monospace">${share}%</span>
+        <div class="bar-mini"><div class="bar-fill" style="width:${share}%"></div></div>
+      </td>
+    </tr>`;
+  }).join('');
+
+  const ctx1 = document.getElementById('productBarChart').getContext('2d');
+  const ctx2 = document.getElementById('productDoughnut').getContext('2d');
+  try { charts.pb?.destroy(); charts.pd?.destroy(); } catch(e){}
+  charts.pb = new Chart(ctx1, {
+    type: 'bar',
+    data: { labels: sorted.map(d => d.name), datasets: [{ data: sorted.map(d => d.revenue), backgroundColor: COLORS, borderRadius: 6 }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+      scales: { x: { grid: { display: false }, ticks: { font: { size: 9 } } }, y: { ticks: { callback: v => fmtK(v), font: { size: 9 } } } } }
+  });
+  charts.pd = new Chart(ctx2, {
+    type: 'polarArea',
+    data: { labels: sorted.map(d => d.name), datasets: [{ data: sorted.map(d => d.revenue), backgroundColor: COLORS.map(c => c + 'cc') }] },
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { font: { size: 9 }, boxWidth: 10 } } },
+      scales: { r: { ticks: { display: false }, grid: { color: '#2a2a3e' } } }
+    }
+  });
+}
+
+// ─── EQUIPE PAGE ──────────────────────────────────────────────────────────────
+async function loadEquipePage() {
+  const data = await apiFetch('/api/by-seller?period=' + currentPeriod);
+  const sorted = [...data].sort((a,b) => b.revenue - a.revenue);
+  const maxRev = sorted[0]?.revenue || 1;
+  const tbody = document.getElementById('sellers-tbody');
+  tbody.innerHTML = sorted.map((s, i) => {
+    const barW = (s.revenue / maxRev * 100).toFixed(0);
+    const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i+1)+'';
+    return `<tr>
+      <td class="rank">${medal}</td>
+      <td><strong>${s.name}</strong></td>
+      <td class="revenue-val">${fmt(s.revenue)}</td>
+      <td>${s.deals}</td>
+      <td>
+        <div class="bar-mini" style="width:140px"><div class="bar-fill" style="width:${barW}%"></div></div>
+      </td>
+    </tr>`;
+  }).join('');
+
+  const ctx = document.getElementById('sellerChart').getContext('2d');
+  try { charts.seller?.destroy(); } catch(e){}
+  charts.seller = new Chart(ctx, {
+    type: 'bar',
+    data: { labels: sorted.map(d => d.name), datasets: [{ data: sorted.map(d => d.revenue), backgroundColor: COLORS, borderRadius: 6 }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+      scales: { x: { grid: { display: false } }, y: { ticks: { callback: v => fmtK(v), font: { size: 9 } } } } }
+  });
+}
+
+// ─── REGIOES PAGE ─────────────────────────────────────────────────────────────
+async function loadRegioesPage() {
+  const data = await apiFetch('/api/by-region?period=' + currentPeriod);
+  const sorted = [...data].sort((a,b) => b.revenue - a.revenue);
+  const total = sorted.reduce((s,d) => s + d.revenue, 0);
+  document.getElementById('regions-tbody').innerHTML = sorted.map((r, i) => {
+    const share = (r.revenue / total * 100).toFixed(1);
+    return `<tr>
+      <td class="rank">${i+1}</td>
+      <td><strong>${r.name}</strong></td>
+      <td class="revenue-val">${fmt(r.revenue)}</td>
+      <td>${r.deals}</td>
+      <td>
+        <span style="font-size:11px;font-family:'IBM Plex Mono',monospace">${share}%</span>
+        <div class="bar-mini"><div class="bar-fill" style="width:${share}%"></div></div>
+      </td>
+    </tr>`;
+  }).join('');
+
+  const ctx1 = document.getElementById('regionBarChart').getContext('2d');
+  const ctx2 = document.getElementById('regionPieChart').getContext('2d');
+  try { charts.rb?.destroy(); charts.rp?.destroy(); } catch(e){}
+  charts.rb = new Chart(ctx1, {
+    type: 'bar',
+    data: { labels: sorted.map(d => d.name), datasets: [{ data: sorted.map(d => d.revenue), backgroundColor: COLORS, borderRadius: 6 }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+      scales: { x: { grid: { display: false } }, y: { ticks: { callback: v => fmtK(v), font: { size: 9 } } } } }
+  });
+  charts.rp = new Chart(ctx2, {
+    type: 'pie',
+    data: { labels: sorted.map(d => d.name), datasets: [{ data: sorted.map(d => d.revenue), backgroundColor: COLORS, borderWidth: 0 }] },
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { font: { size: 10 }, boxWidth: 10 } } }
+    }
+  });
+}
+
+// ─── AI CHAT ──────────────────────────────────────────────────────────────────
+function renderMarkdown(text) {
+  return text
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+    .replace(/\n/g, '<br>');
+}
+
+function appendMsg(role, text) {
+  const msgs = document.getElementById('chat-messages');
+  const div = document.createElement('div');
+  div.className = 'msg ' + role;
+  div.innerHTML = `
+    <div class="msg-avatar">${role === 'ai' ? '✦' : '👤'}</div>
+    <div class="msg-bubble">${renderMarkdown(text)}</div>
+  `;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+  return div;
+}
+
+function showTyping() {
+  const msgs = document.getElementById('chat-messages');
+  const div = document.createElement('div');
+  div.className = 'msg ai'; div.id = 'typing-indicator';
+  div.innerHTML = `<div class="msg-avatar">✦</div><div class="msg-bubble"><div class="typing"><span></span><span></span><span></span></div></div>`;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function removeTyping() {
+  const el = document.getElementById('typing-indicator');
+  if (el) el.remove();
+}
+
+async function sendChat() {
+  const input = document.getElementById('chat-input');
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  appendMsg('user', text);
+  showTyping();
+  try {
+    const res = await fetch(API + '/api/chat', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: text, context: { kpis: kpisData } })
+    });
+    const data = await res.json();
+    removeTyping();
+    appendMsg('ai', data.reply);
+  } catch(e) {
+    removeTyping();
+    appendMsg('ai', '❌ Erro ao conectar com a API. Certifique-se de que o servidor está rodando.');
+  }
+}
+
+function sendSuggestion(el) {
+  document.getElementById('chat-input').value = el.textContent;
+  showPage('ia', document.querySelector('.nav-item:nth-child(6)'));
+  sendChat();
+}
+
+// ─── INIT ────────────────────────────────────────────────────────────────────
+loadDashboard();
+</script>
+</body>
+</html>
